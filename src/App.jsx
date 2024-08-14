@@ -1,147 +1,126 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Howl } from 'howler';
+import React, { useRef, useState, useEffect } from 'react';
+import './App.css'; // Tailwind CSS가 포함된 스타일 시트를 import
 
-// Helper functions
-const waitUntil = (targetTime) => {
-    return new Promise((resolve) => {
-        const checkTime = () => {
-            if (new Date() >= targetTime) {
-                resolve();
-            } else {
-                setTimeout(checkTime, 1000); // Check every second
-            }
-        };
-        checkTime();
-    });
-};
+function App() {
+    // 상태 변수 초기화
+    const [isPlaying, setIsPlaying] = useState(false); // 오디오가 재생 중인지 여부를 저장
+    const [playbackRate, setPlaybackRate] = useState(1); // 오디오의 재생 속도 (기본값은 1배속)
+    const [volume, setVolume] = useState(1); // 오디오의 음량 (기본값은 1, 최대값)
+    const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString()); // 현재 시간을 저장
+    const audioRef = useRef(null); // audio 요소에 대한 참조를 저장
 
-const getRandomDelay = () => Math.floor(Math.random() * 60) + 1; // Random delay between 1 and 60 seconds
-
-const App = () => {
-    const [startTime, setStartTime] = useState("07:00:00");
-    const [endTime, setEndTime] = useState("01:00:00");
-    const [playbackSpeed, setPlaybackSpeed] = useState(2.0);
-    const [status, setStatus] = useState("");
-    const [isPlaying, setIsPlaying] = useState(false);
-    const audio = useRef(null);
-
+    // 컴포넌트가 마운트되면 현재 시간을 1초마다 업데이트하는 타이머 설정
     useEffect(() => {
-        audio.current = new Howl({
-            src: ['/footsteps.mp3'], // 파일 경로를 public 디렉토리의 파일로 설정
-            rate: playbackSpeed,
-            html5: true, // Use HTML5 Audio to handle MP3
-        });
+        // 1초마다 현재 시간을 업데이트하는 타이머 설정
+        const interval = setInterval(() => {
+            setCurrentTime(new Date().toLocaleTimeString());
+        }, 1000);
 
-        const start = async () => {
-            const today = new Date();
-            let startDate = new Date(today.toDateString() + ' ' + startTime);
-            let endDate = new Date(today.toDateString() + ' ' + endTime);
+        // 컴포넌트가 언마운트될 때 타이머 클리어
+        return () => clearInterval(interval);
+    }, []);
 
-            if (endDate <= startDate) {
-                endDate.setDate(endDate.getDate() + 1); // Move end time to the next day
-            }
-
-            const playAudio = () => {
-                // Random play count between 1 and 5
-                const playCount = Math.floor(Math.random() * 5) + 1;
-                setStatus(`Playing audio ${playCount} times.`);
-
-                for (let i = 0; i < playCount; i++) {
-                    if (isPlaying) {
-                        audio.current.play();
-                        audio.current.once('end', () => {
-                            const delay = getRandomDelay();
-                            setStatus(`Waiting ${delay} seconds before next play...`);
-                            setTimeout(playAudio, delay * 1000); // Recur after delay
-                        });
-                    }
-                }
-            };
-
-            const run = async () => {
-                await waitUntil(startDate);
-                setStatus(`Starting audio playback at ${startDate.toTimeString().split(' ')[0]}`);
-                if (isPlaying) playAudio();
-
-                // Continuously check and update status until end time
-                const interval = setInterval(() => {
-                    if (new Date() >= endDate) {
-                        clearInterval(interval);
-                        setStatus(`Stopped playback. Tomorrow will start at ${startDate.toTimeString().split(' ')[0]}`);
-                        startDate.setDate(startDate.getDate() + 1);
-                        endDate.setDate(endDate.getDate() + 1);
-                        run();
-                    }
-                }, 1000);
-            };
-
-            run();
-        };
-
-        start();
-    }, [startTime, endTime, playbackSpeed, isPlaying]);
-
+    // 오디오 재생 함수
     const handlePlay = () => {
-        setIsPlaying(true);
-        setStatus("Audio playback started.");
+        if (audioRef.current) { // audioRef가 현재 유효한지 확인
+            audioRef.current.play(); // 오디오 재생
+            setIsPlaying(true); // 재생 상태 업데이트
+        }
     };
 
+    // 오디오 정지 함수
     const handleStop = () => {
-        setIsPlaying(false);
-        audio.current.stop();
-        setStatus("Audio playback stopped.");
+        if (audioRef.current) { // audioRef가 현재 유효한지 확인
+            audioRef.current.pause(); // 오디오 정지
+            audioRef.current.currentTime = 0; // 오디오를 처음으로 되돌림
+            setIsPlaying(false); // 재생 상태 업데이트
+        }
+    };
+
+    // 재생 속도 변경 핸들러
+    const handlePlaybackRateChange = (event) => {
+        const newRate = parseFloat(event.target.value); // 슬라이더에서 새로운 속도 값 가져오기
+        setPlaybackRate(newRate); // 속도 상태 업데이트
+        if (audioRef.current) { // audioRef가 현재 유효한지 확인
+            audioRef.current.playbackRate = newRate; // 오디오의 재생 속도 설정
+        }
+    };
+
+    // 음량 변경 핸들러
+    const handleVolumeChange = (event) => {
+        const newVolume = parseFloat(event.target.value); // 슬라이더에서 새로운 음량 값 가져오기
+        setVolume(newVolume); // 음량 상태 업데이트
+        if (audioRef.current) { // audioRef가 현재 유효한지 확인
+            audioRef.current.volume = newVolume; // 오디오의 음량 설정
+        }
     };
 
     return (
-        <div className="p-4">
-            <h1 className="text-xl font-bold mb-4">Audio Playback Scheduler</h1>
-            <div className="mb-4">
-                <label className="block mb-1">Start Time:</label>
-                <input
-                    type="text"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="p-2 border rounded"
-                />
-            </div>
-            <div className="mb-4">
-                <label className="block mb-1">End Time:</label>
-                <input
-                    type="text"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="p-2 border rounded"
-                />
-            </div>
-            <div className="mb-4">
-                <label className="block mb-1">Playback Speed:</label>
-                <input
-                    type="number"
-                    step="0.1"
-                    value={playbackSpeed}
-                    onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                    className="p-2 border rounded"
-                />
-            </div>
+        <div className="flex flex-col items-center justify-center h-screen bg-gray-100 p-4">
+            <h1 className="text-2xl font-bold mb-4">MP3 Player</h1>
+            {/* 오디오 요소 */}
+            <audio
+                ref={audioRef} // audio 요소에 대한 참조 설정
+                src="/audio.mp3" // 오디오 파일의 경로
+                loop // 오디오가 끝나면 자동으로 다시 재생
+            ></audio>
+            {/* 버튼 그룹: 시작 및 정지 버튼 */}
             <div className="mb-4">
                 <button
-                    onClick={handlePlay}
-                    className="px-4 py-2 bg-blue-500 text-white rounded mr-2"
+                    onClick={handlePlay} // 버튼 클릭 시 오디오 재생
+                    className={`px-4 py-2 text-white rounded mr-2 ${isPlaying ? 'bg-gray-500' : 'bg-green-500'}`} // 재생 상태에 따라 버튼 색상 변경
                 >
-                    Play
+                    Start
                 </button>
                 <button
-                    onClick={handleStop}
-                    className="px-4 py-2 bg-red-500 text-white rounded"
+                    onClick={handleStop} // 버튼 클릭 시 오디오 정지
+                    className={`px-4 py-2 text-white rounded ${isPlaying ? 'bg-red-500' : 'bg-gray-300'}`} // 재생 상태에 따라 버튼 색상 변경
                 >
                     Stop
                 </button>
             </div>
-            <div>
-                <p>Status: {status}</p>
+            {/* 재생 속도 조절 슬라이더 */}
+            <div className="mb-4">
+                <label htmlFor="playbackRate" className="block text-lg mb-2">
+                    Playback Speed: {playbackRate.toFixed(1)}x
+                </label>
+                <input
+                    id="playbackRate" // 슬라이더의 ID
+                    type="range" // 슬라이더 입력 유형
+                    min="0.5" // 슬라이더의 최소값
+                    max="3" // 슬라이더의 최대값
+                    step="0.1" // 슬라이더의 값 변경 단위
+                    value={playbackRate} // 현재 재생 속도 값을 슬라이더에 설정
+                    onChange={handlePlaybackRateChange} // 슬라이더 값 변경 시 호출되는 핸들러
+                    className="w-64" // 슬라이더의 너비
+                />
+            </div>
+            {/* 음량 조절 슬라이더 */}
+            <div className="mb-4">
+                <label htmlFor="volume" className="block text-lg mb-2">
+                    Volume: {(volume * 100).toFixed(0)}%
+                </label>
+                <input
+                    id="volume" // 슬라이더의 ID
+                    type="range" // 슬라이더 입력 유형
+                    min="0" // 슬라이더의 최소값
+                    max="1" // 슬라이더의 최대값
+                    step="0.01" // 슬라이더의 값 변경 단위
+                    value={volume} // 현재 음량 값을 슬라이더에 설정
+                    onChange={handleVolumeChange} // 슬라이더 값 변경 시 호출되는 핸들러
+                    className="w-64" // 슬라이더의 너비
+                />
+            </div>
+            {/* 재생 상태 메시지 */}
+            <div className="text-xl font-medium mb-4">
+                {isPlaying ? 'Currently Playing' : 'Not Playing'}
+            </div>
+            {/* 현재 시간 표시 */}
+            <div className="text-xl font-medium">
+                Current Time: {currentTime}
             </div>
         </div>
     );
-};
+}
 
 export default App;
